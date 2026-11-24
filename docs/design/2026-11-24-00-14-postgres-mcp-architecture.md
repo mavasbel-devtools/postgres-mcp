@@ -52,8 +52,8 @@ postgres_mcp/
     server.py          # composition root: build_server + main
 sql/
   create_readonly_role.sql
-  grant_write.sql
-  revoke_write.sql
+  grant_writes.sql
+  revoke_writes.sql
 ```
 
 `domain/` holds pure logic with no I/O imports. `application/ports.py`
@@ -222,7 +222,7 @@ module exists.
 - Product node: C-role-scripts.
 - Responsibility: create the revoked read-only role idempotently with paired grant/revoke scripts for write exercises.
 - Public interface: `sql/create_readonly_role.sql`;
-  `sql/grant_write.sql`; `sql/revoke_write.sql` (psql variables only,
+  `sql/grant_writes.sql`; `sql/revoke_writes.sql` (psql variables only,
   `DO`-guarded idempotent role creation).
 - Holding test directory: `tests/live` (grant/revoke scenarios against the
   `postgres` database only).
@@ -235,7 +235,7 @@ module exists.
 | 2 | Single-statement protocol | `n_stmts == 1` in `classify` plus `cursor.execute(sql, prepare=True)` with `prepare_threshold = 0` in `postgres_mcp/infrastructure/adapters/postgres.py` :: `PsycopgExecutor` | Prior art: official reference server bypassed with stacked `COMMIT; DROP SCHEMA public CASCADE;` — "the classifier must accept exactly one statement, and the executor must enforce the single-statement protocol — never trust one layer alone" — <https://securitylabs.datadoghq.com/articles/mcp-vulnerability-case-study-SQL-injection-in-the-postgresql-mcp-server/>; spike verdicts: "`cur.execute(\"SELECT 1; SELECT 2\", prepare=True)` → `psycopg.errors.SyntaxError`, sqlstate `42601`, `cannot insert multiple commands into a prepared statement` — nothing runs" but "the allowlist must still enforce `n_stmts == 1`, because other paths (simple-query protocol, `conn.execute`, future drivers) do run stacked statements" (`brief-1.4/verdict.md` §2) |
 | 3 | Read-only transaction + statement timeout | `conn.read_only = True` when closed and `options='-c statement_timeout=<TIMEOUT_MS>'` (`TIMEOUT_MS = 15000`) in `PsycopgExecutor` | Prior art: pgEdge layers "a text guard, a read-only transaction, a read-only session default and a revoked role" — <https://github.com/pgEdge/pgedge-postgres-mcp>; spike verdicts: `SELECT pg_sleep(0.1)` "**SUCCESS** — holds a connection → **denylist `pg_sleep`** (slow-query DoS)" and `SET TRANSACTION READ WRITE` "**SUCCEEDS** … `BEGIN READ ONLY` is escapable before the first statement" (`brief-1.4/verdict.md` §3 rows 7–8) — the transaction alone is insufficient, the timeout bounds what it cannot stop |
 | 4 | Connection per call + ROLLBACK | one new connection per `PsycopgExecutor.execute` call; always `ROLLBACK` when closed; close on every path | Prior art: crystaldba "leaks session settings across pooled connections" — "one new connection per call, and always `ROLLBACK` when the gate is closed, so no session state survives a call" — <https://github.com/crystaldba/postgres-mcp/issues/203>; and "no row cap, so a single query can flood the model context" — "fetch at most row-cap + 1 rows and set a truncated flag" — <https://github.com/crystaldba/postgres-mcp/issues/243>; spike verdicts: `SELECT set_config('statement_timeout','0',false)` "**SUCCESS** … GUC change allowed in read-only txn → **denylist `set_config` + all `SET`**" (`brief-1.4/verdict.md` §3 row 3) — per-call connections plus `ROLLBACK` contain exactly this class of session-state escape |
-| 5 | Database role (the guarantee) | `sql/create_readonly_role.sql` (+ `sql/grant_write.sql` / `sql/revoke_write.sql`); `PostgresConfig` carries the role credentials, never tool parameters | Prior art: the five-layer precedent "with the role as the final guarantee" — <https://github.com/pgEdge/pgedge-postgres-mcp>; spike verdicts: "read-only txn alone is **insufficient** (row 8: `SET TRANSACTION` escapes it; rows 3/5/7 succeed inside it). The GRANT/REVOKE layer did the real enforcement (rows 1/2/8)" and "row 8 … SQL2 then fails `42501` permission denied for table (no INSERT grant)" (`brief-1.4/verdict.md` §3) |
+| 5 | Database role (the guarantee) | `sql/create_readonly_role.sql` (+ `sql/grant_writes.sql` / `sql/revoke_writes.sql`); `PostgresConfig` carries the role credentials, never tool parameters | Prior art: the five-layer precedent "with the role as the final guarantee" — <https://github.com/pgEdge/pgedge-postgres-mcp>; spike verdicts: "read-only txn alone is **insufficient** (row 8: `SET TRANSACTION` escapes it; rows 3/5/7 succeed inside it). The GRANT/REVOKE layer did the real enforcement (rows 1/2/8)" and "row 8 … SQL2 then fails `42501` permission denied for table (no INSERT grant)" (`brief-1.4/verdict.md` §3) |
 
 ## 4. Dependencies (each with justification and beaten alternative)
 
@@ -256,7 +256,7 @@ Module paths: `postgres_mcp/domain/classifier.py`,
 `postgres_mcp/infrastructure/adapters/postgres.py`,
 `postgres_mcp/infrastructure/adapters/stdio.py`,
 `postgres_mcp/main/server.py`, `sql/create_readonly_role.sql`,
-`sql/grant_write.sql`, `sql/revoke_write.sql`.
+`sql/grant_writes.sql`, `sql/revoke_writes.sql`.
 
 Functions/classes/constants: `classify`, `Verdict`, `DENIED_FUNCTIONS`,
 `PostgresConfig`, `load_config`, `ExecutorPort`, `QueryResult`,

@@ -17,7 +17,7 @@ Feature: Writes are denied while the gate is closed
       | DELETE FROM t                      | DeleteStmt |
       | DROP TABLE t                       | DropStmt   |
       | CREATE TABLE t (a int)             | CreateStmt |
-      | ALTER TABLE t ADD COLUMN b int     | AlterStmt  |
+      | ALTER TABLE t ADD COLUMN b int     | AlterTableStmt |
 
   @feature-gate.uc-write-denied-default @scenario-negative @dependency-none
   Scenario Outline: a comment-obfuscated write is still denied
@@ -28,5 +28,5 @@ Feature: Writes are denied while the gate is closed
     Examples:
       | sql                                  | node       |
       | /* hidden */ INSERT INTO t VALUES (1) | InsertStmt |
-      | -- hidden newline INSERT INTO t VALUES (1) | InsertStmt |
+      | INSERT /* mid */ INTO t VALUES (1)  | InsertStmt |
       | UPDATE /* mid */ t SET a = 1         | UpdateStmt |
