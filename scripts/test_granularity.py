@@ -45,7 +45,11 @@ def _fields(tags: list[str]) -> Scenario | None:
         "",
     )
     dependency = next(
-        (tag.removeprefix("dependency-") for tag in tags if tag.startswith("dependency-")),
+        (
+            tag.removeprefix("dependency-")
+            for tag in tags
+            if tag.startswith("dependency-")
+        ),
         "",
     )
     if not feature or not use_case or polarity not in {"positive", "negative"}:
@@ -67,7 +71,9 @@ def read_scenarios(path: Path) -> list[Scenario]:
         if stripped.startswith("Scenario:") or stripped.startswith("Scenario Outline:"):
             scenario = _fields(tags)
             if scenario is None:
-                raise SystemExit(f"gap: {path}: a scenario lacks a feature tag or polarity")
+                raise SystemExit(
+                    f"gap: {path}: a scenario lacks a feature tag or polarity"
+                )
             scenarios.append(scenario)
             tags = []
     if not scenarios:
@@ -75,10 +81,17 @@ def read_scenarios(path: Path) -> list[Scenario]:
     return scenarios
 
 
-def bindings(use_case: str) -> tuple[bool, bool]:
+def _mentions(path: Path, use_case: str) -> bool:
+    """Return True iff the binding file exists and mentions the use case id."""
+    if not path.exists():
+        return False
+    return use_case in path.read_text(encoding="utf-8")
+
+
+def bindings(feature: str, use_case: str) -> tuple[bool, bool]:
     return (
-        (COMPONENT / f"test_{use_case}.py").exists(),
-        (LIVE / f"test_{use_case}.py").exists(),
+        _mentions(COMPONENT / "features" / f"test_{feature}_features.py", use_case),
+        _mentions(LIVE / "features" / f"test_{feature}_features.py", use_case),
     )
 
 
@@ -106,7 +119,7 @@ def main() -> int:
             for polarity in ("positive", "negative"):
                 if polarity not in polarities:
                     problems.append(f"gap: {use_case} has no {polarity} scenario")
-            component, live = bindings(use_case)
+            component, live = bindings(amu[0].feature, use_case)
             if not component:
                 problems.append(f"gap: {use_case} has no component binding")
             if not live:
