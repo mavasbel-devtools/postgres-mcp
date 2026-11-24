@@ -108,6 +108,21 @@ uv run pytest --no-cov tests/live
 uv run pytest tests/e2e --cov=postgres_mcp --cov-branch --cov-fail-under=100
 ```
 
+## Free models for students
+
+No paid key is needed for the lab. Use a free OpenRouter `:free` model — every one
+currently lists `tools` in its `supported_parameters`, so it can call `execute_sql`:
+
+- Default: `openrouter/nvidia/nemotron-3.5-lightning:free` (1M context; proven for
+  agentic tool use).
+- Fallbacks: `openrouter/google/gemma-4-31b-it:free`,
+  `openrouter/baidu/ernie-5.5-flash-preview:free`.
+
+Sign in from opencode docs ([providers](https://opencode.ai/docs/providers)): run
+`opencode auth login` (target the `openrouter` integration), or `/connect` in the
+TUI then `/models`. Details, limits, fetch dates and page hashes:
+[free-model-endpoints note](docs/reference/2026-11-24-00-14-free-model-endpoints.md).
+
 ## License and credits
 
 GPL-3.0-or-later — see [LICENSE](LICENSE).
